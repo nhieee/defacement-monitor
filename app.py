@@ -289,6 +289,7 @@ def serve_screenshot(filename):
 
 
 if __name__ == '__main__':
-    print('\n  Defacement Monitor')
-    print('  http://localhost:5000\n')
-    app.run(port=5000, use_reloader=False)
+    port = int(os.environ.get('PORT', 5000))
+    print(f'\n  Defacement Monitor')
+    print(f'  http://localhost:{port}\n')
+    app.run(host='0.0.0.0', port=port, use_reloader=False)
