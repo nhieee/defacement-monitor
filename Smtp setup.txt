@@ -1,0 +1,4 @@
+1. Go to myaccount.google.com/security
+2. Under "How you sign in to Google" → click 2-Step Verification → turn it on (just verify your phone number once)
+3. After it's on, go back to myaccount.google.com/apppasswords — the page will work now
+4. Type any name (e.g. defacement-monitor) → click Create → copy the 16-char password → paste it in the App Password field

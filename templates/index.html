@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Defacement Monitor</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surf:#161b22;--surf2:#21262d;--surf3:#2d333b;
+  --bdr:#30363d;--txt:#c9d1d9;--muted:#8b949e;
+  --green:#3fb950;--red:#f85149;--amber:#d29922;--blue:#58a6ff;--orange:#f97316;
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'Cascadia Code','Consolas','Courier New',monospace;
+}
+body{font:13px/1.5 var(--font);background:var(--bg);color:var(--txt);
+     min-height:100vh;display:flex;flex-direction:column}
+
+/* ── Header ── */
+#hdr{display:flex;align-items:center;gap:10px;padding:0 20px;
+     height:52px;flex-shrink:0;background:var(--surf);
+     border-bottom:1px solid var(--bdr);position:sticky;top:0;z-index:30}
+.logo{font-size:13px;font-weight:700;letter-spacing:.3px;white-space:nowrap}
+.logo em{color:var(--green);font-style:normal}
+.hdr-sep{width:1px;height:22px;background:var(--bdr);flex-shrink:0}
+
+/* URL add bar */
+#add-bar{display:flex;align-items:center;gap:6px;flex:1;max-width:560px}
+#url-input{
+  flex:1;padding:7px 12px;background:var(--surf2);
+  border:1px solid var(--bdr);border-radius:7px;
+  color:var(--txt);font:12px var(--font);outline:none;
+  transition:border-color .15s;
+}
+#url-input:focus{border-color:var(--blue)}
+#url-input::placeholder{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;
+     border-radius:7px;cursor:pointer;font:12px var(--font);
+     border:1px solid var(--bdr);background:var(--surf2);color:var(--txt);
+     transition:border-color .15s,background .15s;white-space:nowrap}
+.btn:hover{border-color:var(--blue);background:var(--surf3)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-prim{background:var(--green);color:#0d1117;border-color:var(--green);font-weight:600}
+.btn-prim:hover{background:#45d15a;border-color:#45d15a}
+.btn-danger{color:var(--red);border-color:rgba(248,81,73,.35)}
+.btn-danger:hover{background:rgba(248,81,73,.1);border-color:var(--red)}
+
+.hdr-gap{flex:1}
+.btn-icon{padding:6px 9px;font-size:14px}
+
+/* ── Status bar ── */
+#statusbar{
+  display:flex;align-items:center;gap:10px;
+  padding:0 20px;height:36px;flex-shrink:0;
+  background:var(--surf);border-bottom:1px solid var(--bdr);
+  font-size:11px;color:var(--muted);
+}
+.scan-anim{width:8px;height:8px;border-radius:50%;
+           border:2px solid rgba(88,166,255,.3);border-top-color:var(--blue);
+           animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sbar-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.sbar-gap{flex:1}
+
+/* ── Onboarding (no sites) ── */
+#onboard{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:16px;padding:40px 20px;
+}
+.ob-icon{font-size:56px;line-height:1}
+.ob-title{font-size:20px;font-weight:600;color:var(--txt)}
+.ob-sub{font-size:13px;color:var(--muted);text-align:center;max-width:320px;line-height:1.7}
+.ob-input-wrap{display:flex;gap:8px;width:100%;max-width:480px}
+.ob-input-wrap input{
+  flex:1;padding:11px 14px;background:var(--surf);
+  border:1px solid var(--bdr);border-radius:9px;
+  color:var(--txt);font:14px var(--font);outline:none;
+  transition:border-color .15s;
+}
+.ob-input-wrap input:focus{border-color:var(--blue)}
+.ob-input-wrap input::placeholder{color:var(--muted)}
+.ob-hint{font-size:11px;color:var(--muted)}
+
+/* ── Site list ── */
+#sitewrap{flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:10px}
+.site-card{
+  background:var(--surf);border:1px solid var(--bdr);border-radius:10px;
+  display:flex;align-items:center;gap:14px;padding:14px 16px;
+  cursor:pointer;transition:border-color .15s,background .15s;
+  border-left:3px solid var(--bdr);
+}
+.site-card:hover{border-color:var(--blue);background:var(--surf2)}
+.site-card.status-ALERT  {border-left-color:var(--red)}
+.site-card.status-WARNING{border-left-color:var(--amber)}
+.site-card.status-OK     {border-left-color:var(--green)}
+.site-card.status-OFFLINE{border-left-color:var(--muted)}
+.site-card.status-PENDING_BASELINE{border-left-color:var(--blue)}
+.site-card.scanning{border-left-color:var(--blue);animation:scan-pulse 1.5s ease-in-out infinite}
+@keyframes scan-pulse{0%,100%{opacity:1}50%{opacity:.7}}
+
+.sc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.sc-dot.ALERT  {background:var(--red);animation:dot-pulse .9s ease-in-out infinite}
+.sc-dot.WARNING{background:var(--amber)}
+.sc-dot.OK     {background:var(--green)}
+.sc-dot.OFFLINE{background:var(--muted)}
+.sc-dot.PENDING_BASELINE{background:var(--blue);animation:dot-pulse 1.2s ease-in-out infinite}
+.sc-dot.SCANNING{background:var(--blue);animation:dot-pulse .6s ease-in-out infinite}
+@keyframes dot-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+
+.sc-info{flex:1;min-width:0}
+.sc-label{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-url  {font-size:11px;color:var(--muted);font-family:var(--mono);
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.sc-meta {font-size:11px;color:var(--muted);margin-top:5px}
+
+.sc-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.pill{display:inline-flex;align-items:center;padding:3px 10px;
+      border-radius:12px;font-size:11px;font-weight:600;letter-spacing:.4px}
+.pill-OK    {background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3)}
+.pill-ALERT {background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.3)}
+.pill-WARNING{background:rgba(210,153,34,.15);color:var(--amber);border:1px solid rgba(210,153,34,.3)}
+.pill-OFFLINE{background:rgba(139,148,158,.15);color:var(--muted);border:1px solid rgba(139,148,158,.3)}
+.pill-PENDING_BASELINE{background:rgba(88,166,255,.15);color:var(--blue);border:1px solid rgba(88,166,255,.3)}
+.pill-SCANNING{background:rgba(88,166,255,.15);color:var(--blue);border:1px solid rgba(88,166,255,.3)}
+.a-badge{background:var(--red);color:#fff;border-radius:10px;
+         font-size:11px;font-weight:700;padding:2px 8px}
+
+/* ── Right drawer ── */
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40}
+#overlay.show{display:block}
+#drawer{
+  position:fixed;top:0;right:-480px;width:480px;height:100vh;
+  background:var(--surf);border-left:1px solid var(--bdr);
+  display:flex;flex-direction:column;z-index:50;
+  transition:right .25s cubic-bezier(.4,0,.2,1);overflow:hidden;
+}
+#drawer.open{right:0}
+.dr-hdr{display:flex;align-items:center;gap:10px;padding:16px 18px;
+        border-bottom:1px solid var(--bdr);flex-shrink:0}
+.dr-hdr h2{font-size:15px;font-weight:600;flex:1;overflow:hidden;
+           text-overflow:ellipsis;white-space:nowrap}
+.dr-body{flex:1;overflow-y:auto;padding:18px}
+.dr-body::-webkit-scrollbar{width:5px}
+.dr-body::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+
+.dr-url{font-family:var(--mono);font-size:11px;color:var(--muted);
+        word-break:break-all;margin-bottom:14px}
+.dr-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.dr-actions{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
+.dr-sec{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.8px;
+        text-transform:uppercase;margin-bottom:10px;margin-top:18px}
+
+/* Baseline cards */
+.bl-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.bl-card{background:var(--surf2);border:1px solid var(--bdr);
+         border-radius:7px;padding:10px}
+.bl-card.wide{grid-column:1/-1}
+.bl-card.copyable{cursor:pointer;transition:border-color .15s}
+.bl-card.copyable:hover{border-color:var(--blue)}
+.bl-card.copyable:active{border-color:var(--green)}
+.bl-lbl{font-size:10px;color:var(--muted);letter-spacing:.5px;
+        text-transform:uppercase;margin-bottom:4px}
+.bl-val{font-family:var(--mono);font-size:11px;word-break:break-all}
+.code{font-family:var(--mono);font-size:10px;background:var(--surf3);
+      padding:1px 5px;border-radius:4px;border:1px solid var(--bdr)}
+
+/* Alerts */
+.alert-card{
+  display:flex;gap:10px;align-items:flex-start;
+  background:var(--surf2);border:1px solid var(--bdr);
+  border-radius:8px;padding:11px;margin-bottom:8px;
+}
+.sv-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.sv-CRITICAL{background:var(--red)}.sv-HIGH{background:var(--orange)}
+.sv-MEDIUM{background:var(--amber)}.sv-INFO{background:var(--blue)}
+.sev-chip{display:inline-block;padding:1px 6px;border-radius:4px;
+          font-size:10px;font-weight:700;letter-spacing:.4px}
+.sc-CRITICAL{background:rgba(248,81,73,.2);color:var(--red)}
+.sc-HIGH    {background:rgba(249,115,22,.2);color:var(--orange)}
+.sc-MEDIUM  {background:rgba(210,153,34,.2);color:var(--amber)}
+.sc-INFO    {background:rgba(88,166,255,.2);color:var(--blue)}
+.al-finding{font-size:12px;font-weight:600;margin:4px 0}
+.al-detail{font-size:11px;color:var(--muted);font-family:var(--mono);
+           white-space:pre-wrap;word-break:break-word;
+           max-height:100px;overflow-y:auto;line-height:1.5}
+.al-ts{font-size:10px;color:var(--muted);margin-top:6px}
+.acked{font-size:10px;color:var(--muted);border:1px solid var(--bdr);
+       border-radius:4px;padding:1px 5px;margin-left:6px}
+.no-alerts{text-align:center;padding:28px;color:var(--muted);font-size:12px}
+.no-bl{text-align:center;padding:28px;color:var(--muted);font-size:12px}
+
+/* Screenshots */
+.ss-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:8px}
+.ss-item{border:1px solid var(--bdr);border-radius:7px;overflow:hidden;cursor:pointer;
+         transition:border-color .15s}
+.ss-item:hover{border-color:var(--blue)}
+.ss-item img{width:100%;display:block;aspect-ratio:16/9;object-fit:cover;background:var(--surf3)}
+.ss-meta{font-size:10px;color:var(--muted);padding:5px 7px;font-family:var(--mono)}
+.ss-none{font-size:11px;color:var(--muted);padding:6px 0}
+
+/* Mitigated alert state */
+.alert-card.alert-mitigated{border-color:rgba(63,185,80,.3);background:rgba(63,185,80,.05)}
+.sv-mitigated{background:var(--green)}
+.sc-mitigated{background:rgba(63,185,80,.2);color:var(--green)}
+.mitigated-badge{font-size:10px;font-weight:700;color:var(--green);
+                 border:1px solid rgba(63,185,80,.4);border-radius:4px;padding:1px 6px}
+
+/* Settings modal */
+#mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;
+     align-items:center;justify-content:center;padding:16px}
+#mbg.show{display:flex}
+.modal{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;
+       padding:24px;width:100%;max-width:440px;
+       box-shadow:0 20px 60px rgba(0,0,0,.5);
+       max-height:90vh;overflow-y:auto;display:flex;flex-direction:column}
+.modal::-webkit-scrollbar{width:5px}
+.modal::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+.modal h3{font-size:14px;font-weight:600;margin-bottom:16px;flex-shrink:0}
+.modal-sec{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.8px;
+           text-transform:uppercase;margin:16px 0 10px;padding-top:14px;
+           border-top:1px solid var(--bdr)}
+.modal-sec:first-of-type{margin-top:0;padding-top:0;border-top:none}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px}
+.field select,.field input[type="text"],.field input[type="email"],
+.field input[type="number"],.field input[type="password"]{
+  width:100%;padding:8px 10px;background:var(--surf2);
+  border:1px solid var(--bdr);border-radius:6px;
+  color:var(--txt);font:12px var(--font);outline:none;
+  transition:border-color .15s}
+.field select:focus,.field input:focus{border-color:var(--blue)}
+.field-row{display:flex;gap:8px}
+.field-row .field{flex:1;margin-bottom:0}
+.field-toggle{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.field-toggle > label{font-size:12px;color:var(--txt);cursor:pointer;flex:1}
+/* The toggle-wrap IS a label — clicking anywhere on it (including track/knob) fires the checkbox */
+label.toggle-wrap{position:relative;display:inline-block;
+                  width:38px;height:22px;flex:0 0 38px;cursor:pointer}
+label.toggle-wrap input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;border-radius:11px;
+              background:var(--surf3);border:1px solid var(--bdr);
+              transition:background .2s,border-color .2s}
+label.toggle-wrap input:checked + .toggle-track{background:var(--green);border-color:var(--green)}
+.toggle-knob{position:absolute;top:4px;left:4px;width:14px;height:14px;
+             background:#fff;border-radius:50%;transition:transform .2s;
+             pointer-events:none;z-index:1}
+label.toggle-wrap input:checked ~ .toggle-knob{transform:translateX(16px)}
+.email-fields-wrap{transition:opacity .2s}
+.email-fields-wrap.disabled{opacity:.35;pointer-events:none}
+.adv-toggle{font-size:11px;color:var(--blue);cursor:pointer;background:none;
+            border:none;padding:0;margin-bottom:10px;text-decoration:underline;
+            text-underline-offset:2px}
+.adv-section{display:none}
+.adv-section.open{display:block}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="hdr">
+  <div class="logo">🛡 <em>DEFACEMENT</em> MONITOR</div>
+  <div class="hdr-sep"></div>
+  <div id="add-bar">
+    <input id="url-input" type="text" placeholder="Paste URL to monitor…" />
+    <button class="btn btn-prim" id="add-btn" onclick="App.addUrl()">+ Add</button>
+  </div>
+  <div class="hdr-gap"></div>
+  <button class="btn btn-icon btn-sm" onclick="App.forceCheck()" title="Force check now">⟳</button>
+  <button class="btn btn-icon btn-sm" onclick="App.openSettings()" title="Settings">⚙</button>
+</div>
+
+<!-- Status bar -->
+<div id="statusbar">
+  <div id="sbar-content">Loading…</div>
+  <div class="sbar-gap"></div>
+  <span id="sbar-interval" style="color:var(--muted)"></span>
+</div>
+
+<!-- Content -->
+<div id="content"></div>
+
+<!-- Right drawer -->
+<div id="overlay" onclick="App.closeDrawer()"></div>
+<div id="drawer">
+  <div class="dr-hdr">
+    <h2 id="dr-title">—</h2>
+    <button class="btn btn-sm" onclick="App.closeDrawer()">✕ Close</button>
+  </div>
+  <div class="dr-body" id="dr-body"></div>
+</div>
+
+<!-- Settings modal -->
+<div id="mbg" onclick="if(event.target===this)App.closeSettings()">
+  <div class="modal">
+    <h3>⚙ Settings</h3>
+
+    <div class="modal-sec">Monitoring</div>
+    <div class="field">
+      <label>Scan Interval</label>
+      <select id="interval-sel">
+        <option value="30">30 seconds (testing)</option>
+        <option value="60">1 minute</option>
+        <option value="300">5 minutes</option>
+        <option value="900">15 minutes</option>
+        <option value="1800">30 minutes</option>
+        <option value="3600">1 hour</option>
+      </select>
+    </div>
+
+    <div class="modal-sec">Email Alerts</div>
+    <div class="field-toggle">
+      <label for="email-enabled">Send email when an alert is detected</label>
+      <label class="toggle-wrap" for="email-enabled">
+        <input type="checkbox" id="email-enabled" onchange="App.toggleEmailFields()">
+        <span class="toggle-track"></span>
+        <span class="toggle-knob"></span>
+      </label>
+    </div>
+
+    <div class="email-fields-wrap disabled" id="email-fields">
+      <div class="field">
+        <label>Alert Email</label>
+        <input type="email" id="alert-email" placeholder="vansh.cybersec@gmail.com">
+      </div>
+      <div class="field">
+        <label>App Password <span id="email-domain-hint"
+          style="font-weight:400;color:var(--muted);margin-left:6px;font-size:10px"></span></label>
+        <input type="password" id="smtp-pass" placeholder="16-char App Password"
+               autocomplete="new-password" oninput="App.onEmailInput()">
+      </div>
+      <div style="font-size:10px;color:var(--muted);line-height:1.7;margin-bottom:10px">
+        Gmail: Account → Security →
+        <a href="https://myaccount.google.com/apppasswords" target="_blank"
+           style="color:var(--blue)">App Passwords</a>
+        → create one → paste here.<br>
+        SMTP server is auto-detected from your email domain.
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn btn-sm" id="test-email-btn" onclick="App.testEmail()">
+          ✉ Send Test Email
+        </button>
+        <span id="test-email-status" style="font-size:11px;color:var(--muted)"></span>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="App.closeSettings()">Cancel</button>
+      <button class="btn btn-prim" onclick="App.saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const App = (() => {
+  let _sites     = {};
+  let _scanning  = null;
+  let _nextAt    = null;   // epoch ms when next scan fires
+  let _sel       = null;   // selected site key for drawer
+  let _interval  = 300;
+  let _alertRefs = [];     // [{url, ts}] indexed by position in rendered alert list
+
+  const $ = id => document.getElementById(id);
+  const h = s  => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  function fmtAgo(ts) {
+    if (!ts) return 'Never';
+    const s = Math.round((Date.now() - new Date(ts)) / 1000);
+    if (s < 10)  return 'Just now';
+    if (s < 60)  return s + 's ago';
+    if (s < 3600) return Math.round(s/60) + 'm ago';
+    return Math.round(s/3600) + 'h ago';
+  }
+
+  function fmtCountdown(secs) {
+    if (secs == null) return '';
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return m > 0 ? `${m}m ${String(s).padStart(2,'0')}s` : `${s}s`;
+  }
+
+  function post(url, body={}) {
+    return fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+  }
+
+  // ── Data loading ──────────────────────────────────────────────────────────
+  async function loadSites() {
+    try {
+      const r = await fetch('/api/sites');
+      _sites = await r.json();
+    } catch(e) {}
+    render();
+    if (_sel && _sites[_sel]) renderDrawer();
+  }
+
+  async function loadStatus() {
+    try {
+      const r = await fetch('/api/status');
+      const d = await r.json();
+      _scanning  = d.scanning;
+      _nextAt    = d.next_scan_in != null ? Date.now() + d.next_scan_in * 1000 : null;
+      _interval  = d.interval || 300;
+    } catch(e) {}
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  function render() {
+    const entries = Object.entries(_sites);
+    if (!entries.length) {
+      renderOnboard();
+    } else {
+      renderCards(entries);
+    }
+    renderStatusBar();
+  }
+
+  function renderOnboard() {
+    $('content').innerHTML = `
+      <div id="onboard">
+        <div class="ob-icon">🛡</div>
+        <div class="ob-title">Website Defacement Monitor</div>
+        <div class="ob-sub">Paste any URL below. The system will baseline it and start scanning automatically.</div>
+        <div class="ob-input-wrap">
+          <input id="ob-input" type="text" placeholder="https://example.gov.in"
+                 onkeydown="if(event.key==='Enter')App.addUrlFrom('ob-input')" />
+          <button class="btn btn-prim" style="padding:11px 20px;font-size:13px"
+                  onclick="App.addUrlFrom('ob-input')">Start Monitoring</button>
+        </div>
+        <div class="ob-hint">Supports HTTP/HTTPS. Enter full URL or just the domain.</div>
+      </div>`;
+    setTimeout(() => { const el = $('ob-input'); if(el) el.focus(); }, 50);
+  }
+
+  function renderCards(entries) {
+    $('content').innerHTML = `<div id="sitewrap">
+      ${entries.map(([k,s]) => renderCard(k,s)).join('')}
+    </div>`;
+  }
+
+  function renderCard(k, s) {
+    const isScanning = (_scanning === s.url);
+    const status     = isScanning ? 'SCANNING' : s.status;
+    const unacked    = (s.alerts||[]).filter(a=>!a.acked && !a.mitigated).length;
+    const label      = s.label || new URL(s.url).hostname;
+    const dotCls     = isScanning ? 'SCANNING' : s.status;
+    const cardCls    = isScanning ? 'scanning' : `status-${s.status}`;
+    const pillTxt    = isScanning
+      ? '⟳ Scanning…'
+      : {OK:'✓ OK',ALERT:'⚠ Alert',WARNING:'⚡ Warning',OFFLINE:'✕ Offline',PENDING_BASELINE:'◌ Baselining…'}[s.status] || s.status;
+
+    let meta = '';
+    if (isScanning) {
+      meta = s.baseline ? 'Checking for changes…' : 'Capturing baseline…';
+    } else if (s.status === 'PENDING_BASELINE') {
+      meta = 'Waiting for baseline…';
+    } else {
+      meta = `Last checked: ${fmtAgo(s.last_check)}`;
+    }
+
+    return `<div class="site-card ${cardCls}" onclick="App.openDrawer('${k}')">
+      <div class="sc-dot ${dotCls}"></div>
+      <div class="sc-info">
+        <div class="sc-label">${h(label)}</div>
+        <div class="sc-url">${h(s.url)}</div>
+        <div class="sc-meta">${meta}</div>
+      </div>
+      <div class="sc-right">
+        ${unacked ? `<div class="a-badge">⚠ ${unacked}</div>` : ''}
+        <span class="pill pill-${status}">${pillTxt}</span>
+      </div>
+    </div>`;
+  }
+
+  // ── Status bar ────────────────────────────────────────────────────────────
+  function renderStatusBar() {
+    let html = '';
+    const vals    = Object.values(_sites);
+    const nAlert  = vals.filter(s=>s.status==='ALERT').length;
+    const nWarn   = vals.filter(s=>s.status==='WARNING').length;
+    const nOff    = vals.filter(s=>s.status==='OFFLINE').length;
+    const nOk     = vals.filter(s=>s.status==='OK').length;
+    const total   = vals.length;
+
+    if (_scanning) {
+      const domain = (() => { try { return new URL(_scanning).hostname; } catch{ return _scanning; } })();
+      html = `<div class="scan-anim"></div>
+              <span style="color:var(--blue)">Scanning <strong>${h(domain)}</strong>…</span>`;
+    } else if (!total) {
+      html = `<span>No sites monitored yet.</span>`;
+    } else if (nAlert) {
+      html = `<div class="sbar-dot" style="background:var(--red)"></div>
+              <span style="color:var(--red)"><strong>${nAlert}</strong> site${nAlert>1?'s':''} with alerts</span>
+              ${nOk ? `<span>·</span><span style="color:var(--green)">${nOk} OK</span>` : ''}`;
+    } else if (nWarn) {
+      html = `<div class="sbar-dot" style="background:var(--amber)"></div>
+              <span style="color:var(--amber)"><strong>${nWarn}</strong> warning${nWarn>1?'s':''}</span>
+              ${nOk ? `<span>·</span><span style="color:var(--green)">${nOk} OK</span>` : ''}`;
+    } else if (nOff) {
+      html = `<div class="sbar-dot" style="background:var(--muted)"></div>
+              <span><strong>${nOff}</strong> offline</span>`;
+    } else {
+      html = `<div class="sbar-dot" style="background:var(--green)"></div>
+              <span style="color:var(--green)">All ${total} site${total>1?'s':''} OK</span>`;
+    }
+    $('sbar-content').innerHTML = html;
+  }
+
+  // Countdown ticker (runs every second, no API call)
+  function tickCountdown() {
+    const el = $('sbar-interval');
+    if (!el) return;
+    if (_scanning) { el.textContent = ''; return; }
+    if (_nextAt == null) { el.textContent = ''; return; }
+    const secs = Math.max(0, Math.round((_nextAt - Date.now()) / 1000));
+    el.textContent = `Next scan in ${fmtCountdown(secs)}`;
+  }
+
+  // ── Drawer ────────────────────────────────────────────────────────────────
+  function openDrawer(key) {
+    _sel = key;
+    renderDrawer();
+    $('overlay').classList.add('show');
+    $('drawer').classList.add('open');
+  }
+
+  function closeDrawer() {
+    _sel = null;
+    $('overlay').classList.remove('show');
+    $('drawer').classList.remove('open');
+  }
+
+  function renderDrawer() {
+    const s = _sites[_sel];
+    if (!s) return;
+    const label    = s.label || ((() => { try{ return new URL(s.url).hostname; }catch{return s.url;} })());
+    const unacked  = (s.alerts||[]).filter(a=>!a.acked && !a.mitigated).length;
+    const status   = (_scanning===s.url) ? 'SCANNING' : s.status;
+    const pillTxt  = {SCANNING:'⟳ Scanning…',OK:'✓ OK',ALERT:'⚠ Alert',WARNING:'⚡ Warning',
+                      OFFLINE:'✕ Offline',PENDING_BASELINE:'◌ Baselining…'}[status] || status;
+
+    $('dr-title').textContent = label;
+    $('dr-body').innerHTML = `
+      <div class="dr-url">${h(s.url)}</div>
+      <div class="dr-meta">
+        <span class="pill pill-${status}">${pillTxt}</span>
+        <span style="font-size:11px;color:var(--muted)">
+          Checked: ${fmtAgo(s.last_check)}
+        </span>
+      </div>
+      <div class="dr-actions">
+        ${unacked ? `<button class="btn btn-sm" onclick="App.clearAlerts()">✓ Acknowledge All</button>` : ''}
+        <button class="btn btn-sm" id="ss-btn" onclick="App.takeScreenshot()">📷 Take Screenshot</button>
+        <button class="btn btn-sm btn-danger" onclick="App.removeSite()">✕ Remove</button>
+      </div>
+
+      <div class="dr-sec">Baseline Snapshot</div>
+      ${buildBaseline(s.baseline)}
+
+      <div class="dr-sec">Screenshots</div>
+      ${buildScreenshots(s.screenshots)}
+
+      <div class="dr-sec">Alerts ${unacked ? `<span class="a-badge" style="margin-left:4px">${unacked}</span>` : ''}</div>
+      ${buildAlerts(s.alerts)}
+    `;
+  }
+
+  function buildBaseline(b) {
+    if (!b) return `<div class="no-bl">No baseline yet. Baseline will be captured automatically on next scan.</div>`;
+    const scripts = b.external_scripts || [];
+    return `<div class="bl-grid">
+      ${bc('Title',       h(b.title||'—'))}
+      ${bc('Status',      `<span style="color:${b.status_code===200?'var(--green)':'var(--red)'}; font-size:16px;font-weight:700">${b.status_code||'—'}</span>`)}
+      ${bcCopy('HTML Hash', b.html_hash||'')}
+      ${bcCopy('Text Hash', b.text_hash||'')}
+      ${bc('Words',       b.word_count ?? '—')}
+      ${bc('Response',    b.response_time != null ? b.response_time.toFixed(2)+'s' : '—')}
+      ${bc('SSL Cert',    b.ssl_fingerprint ? `<span class="code">${b.ssl_fingerprint.slice(0,16)}…</span>` : '<span style="color:var(--muted)">HTTP / None</span>')}
+      ${bc('Captured',    fmtAgo(b.captured_at))}
+      <div class="bl-card wide">
+        <div class="bl-lbl">External Scripts (${scripts.length})</div>
+        ${scripts.length
+          ? scripts.map(sc=>`<div style="font:10px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h(sc)}</div>`).join('')
+          : '<span style="color:var(--muted);font-size:11px">None detected</span>'
+        }
+      </div>
+    </div>`;
+  }
+
+  function bc(lbl, val) {
+    return `<div class="bl-card">
+      <div class="bl-lbl">${lbl}</div>
+      <div class="bl-val">${val}</div>
+    </div>`;
+  }
+
+  function bcCopy(lbl, fullHash) {
+    if (!fullHash) return bc(lbl, '<span style="color:var(--muted)">—</span>');
+    const short = fullHash.slice(0, 18) + '…';
+    return `<div class="bl-card copyable" title="Click to copy full hash"
+                 onclick="App.copyHash(this,'${fullHash}')">
+      <div class="bl-lbl" style="display:flex;justify-content:space-between">
+        <span>${lbl}</span>
+        <span id="copy-lbl-${lbl.replace(/\s/g,'')}"
+              style="color:var(--muted);font-size:9px;letter-spacing:0">click to copy</span>
+      </div>
+      <div class="bl-val"><span class="code">${short}</span></div>
+    </div>`;
+  }
+
+  function copyHash(el, hash) {
+    navigator.clipboard.writeText(hash).catch(() => {
+      const t = document.createElement('textarea');
+      t.value = hash; document.body.appendChild(t); t.select();
+      document.execCommand('copy'); document.body.removeChild(t);
+    });
+    const lbl = el.querySelector('[id^="copy-lbl-"]');
+    if (lbl) {
+      lbl.textContent = '✓ Copied!'; lbl.style.color = 'var(--green)';
+      setTimeout(() => { lbl.textContent = 'click to copy'; lbl.style.color = 'var(--muted)'; }, 2000);
+    }
+  }
+
+  function buildScreenshots(shots) {
+    if (!shots || !shots.length) {
+      return `<div class="ss-none">No screenshots yet — click "📷 Take Screenshot" to capture one.</div>`;
+    }
+    const items = shots.slice().reverse().map(s => {
+      const dt  = s.timestamp ? new Date(s.timestamp) : null;
+      const lbl = dt
+        ? dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) +
+          ' ' + dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
+        : s.filename;
+      return `<div class="ss-item" title="${h(lbl)}" onclick="window.open('/screenshots/${h(s.filename)}','_blank')">
+        <img src="/screenshots/${h(s.filename)}" alt="${h(lbl)}" loading="lazy"
+             onerror="this.style.display='none'">
+        <div class="ss-meta">${h(lbl)}</div>
+      </div>`;
+    });
+    return `<div class="ss-grid">${items.join('')}</div>`;
+  }
+
+  function buildAlerts(alerts) {
+    if (!alerts || !alerts.length) {
+      return `<div class="no-alerts">✅ No alerts recorded for this site.</div>`;
+    }
+    const siteUrl = _sites[_sel]?.url || '';
+    _alertRefs = [];
+    return alerts.slice().reverse().map(a => {
+      const idx  = _alertRefs.push({ url: siteUrl, ts: a.timestamp }) - 1;
+      const done = !!a.mitigated;
+      return `
+      <div class="alert-card${done ? ' alert-mitigated' : ''}">
+        <div class="sv-dot ${done ? 'sv-mitigated' : 'sv-' + a.severity}"></div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span class="sev-chip ${done ? 'sc-mitigated' : 'sc-' + a.severity}">${h(a.severity)}</span>
+            ${done ? '<span class="mitigated-badge">✓ MITIGATED</span>' : ''}
+          </div>
+          <div class="al-finding">${h(a.type || '—')}</div>
+          ${a.detail ? `<div class="al-detail">${h(a.detail)}</div>` : ''}
+          ${a.type === 'CONTENT_CHANGED' && a.old_html_hash ? `
+          <div style="margin-top:6px;font-size:10px;font-family:var(--mono);line-height:1.8">
+            <div><span style="color:var(--muted)">old hash  </span>
+              <span class="code" style="cursor:pointer" title="Click to copy"
+                onclick="App.copyHash(this,'${a.old_html_hash}')">${a.old_html_hash.slice(0,20)}…</span>
+            </div>
+            <div><span style="color:var(--muted)">new hash  </span>
+              <span class="code" style="cursor:pointer;color:var(--amber)" title="Click to copy"
+                onclick="App.copyHash(this,'${a.new_html_hash}')">${(a.new_html_hash||'?').slice(0,20)}…</span>
+            </div>
+          </div>` : ''}
+          <div class="al-ts" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px">
+            <span style="flex:1">${fmtAgo(a.timestamp)}</span>
+            ${!done ? `<button class="btn btn-sm" style="padding:2px 9px;font-size:10px"
+                onclick="App.alertAction(${idx},'mitigate')">✓ Mitigated</button>` : ''}
+            <button class="btn btn-sm btn-danger" style="padding:2px 9px;font-size:10px"
+                onclick="App.alertAction(${idx},'remove')">✕ Remove</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+  async function addUrl() {
+    await _doAdd($('url-input').value.trim());
+    $('url-input').value = '';
+  }
+
+  async function addUrlFrom(inputId) {
+    const val = $(inputId)?.value.trim();
+    if (val) await _doAdd(val);
+  }
+
+  async function _doAdd(url) {
+    if (!url) return;
+    const btn = $('add-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    try {
+      const r = await post('/api/add', { url });
+      const d = await r.json();
+      if (d.ok) {
+        await loadSites();
+      } else {
+        alert(d.error || 'Could not add URL');
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '+ Add'; }
+    }
+  }
+
+  async function clearAlerts() {
+    const url = _sites[_sel]?.url;
+    if (!url) return;
+    await post('/api/clear-alerts', { url });
+    await loadSites();
+  }
+
+  async function removeSite() {
+    const s = _sites[_sel];
+    if (!s) return;
+    const label = s.label || s.url;
+    if (!confirm(`Stop monitoring "${label}"?`)) return;
+    await post('/api/remove', { url: s.url });
+    closeDrawer();
+    await loadSites();
+  }
+
+  async function forceCheck() {
+    await post('/api/force-check');
+    await Promise.all([loadSites(), loadStatus()]);
+  }
+
+  async function takeScreenshot() {
+    const s = _sites[_sel];
+    if (!s) return;
+    const btn = $('ss-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Capturing…'; }
+    try {
+      const r = await post('/api/screenshot', { url: s.url });
+      const d = await r.json();
+      if (!d.ok) { alert(d.error || 'Screenshot failed'); return; }
+      // Poll until the new screenshot appears (background thread)
+      let tries = 0;
+      const poll = setInterval(async () => {
+        await loadSites();
+        const shots = (_sites[_sel]?.screenshots || []);
+        if (shots.length > (s.screenshots?.length || 0) || ++tries > 20) {
+          clearInterval(poll);
+          if (_sel && _sites[_sel]) renderDrawer();
+        }
+      }, 1500);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '📷 Take Screenshot'; }
+    }
+  }
+
+  async function alertAction(idx, action) {
+    const ref = _alertRefs[idx];
+    if (!ref) return;
+    await post('/api/alert-action', { url: ref.url, timestamp: ref.ts, action });
+    await loadSites();
+  }
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+  async function openSettings() {
+    const r = await fetch('/api/settings');
+    const d = await r.json();
+    $('interval-sel').value    = String(d.interval || 300);
+    $('email-enabled').checked = !!d.email_enabled;
+    $('alert-email').value     = d.alert_email || '';
+    $('smtp-pass').value       = d.smtp_pass   || '';
+    toggleEmailFields();
+    onEmailInput();
+    $('test-email-status').textContent = '';
+    $('mbg').classList.add('show');
+  }
+
+  function closeSettings() { $('mbg').classList.remove('show'); }
+
+  function toggleEmailFields() {
+    $('email-fields').classList.toggle('disabled', !$('email-enabled').checked);
+  }
+
+  function onEmailInput() {
+    const email  = ($('alert-email').value || '').trim().toLowerCase();
+    const domain = email.includes('@') ? email.split('@')[1] : '';
+    const map = {
+      'gmail.com': 'Gmail', 'googlemail.com': 'Gmail',
+      'yahoo.com': 'Yahoo', 'yahoo.in': 'Yahoo',
+      'outlook.com': 'Outlook', 'hotmail.com': 'Hotmail', 'live.com': 'Live',
+      'icloud.com': 'iCloud', 'protonmail.com': 'ProtonMail', 'zoho.com': 'Zoho',
+    };
+    const hint = $('email-domain-hint');
+    if (hint) hint.textContent = map[domain] ? `(${map[domain]} detected)` : '';
+  }
+
+  function toggleAdvSmtp() {}
+
+  async function _doSaveSettings() {
+    const iv = parseInt($('interval-sel').value, 10);
+    await post('/api/settings', {
+      interval:      iv,
+      email_enabled: $('email-enabled').checked,
+      alert_email:   ($('alert-email').value || '').trim(),
+      smtp_pass:     $('smtp-pass').value    || '',
+    });
+    _interval = iv;
+  }
+
+  async function saveSettings() {
+    await _doSaveSettings();
+    closeSettings();
+  }
+
+  async function testEmail() {
+    const btn = $('test-email-btn');
+    const st  = $('test-email-status');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending…'; }
+    if (st)  { st.textContent = ''; st.style.color = 'var(--muted)'; }
+    try {
+      await _doSaveSettings();
+      const r = await post('/api/test-email');
+      const d = await r.json();
+      if (d.ok) {
+        if (st) { st.textContent = '✓ Sent!'; st.style.color = 'var(--green)'; }
+      } else {
+        if (st) { st.textContent = '✗ ' + (d.error || 'Failed'); st.style.color = 'var(--red)'; }
+      }
+    } catch(e) {
+      if (st) { st.textContent = '✗ ' + e.message; st.style.color = 'var(--red)'; }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '✉ Send Test Email'; }
+    }
+  }
+
+  // ── Init & polling ────────────────────────────────────────────────────────
+  async function init() {
+    await Promise.all([loadSites(), loadStatus()]);
+
+    // Refresh data every 5s
+    setInterval(async () => {
+      await loadSites();
+      await loadStatus();
+    }, 5000);
+
+    // Countdown tick every second (no API call)
+    setInterval(tickCountdown, 1000);
+
+    // Keyboard
+    $('url-input').addEventListener('keydown', e => { if (e.key==='Enter') addUrl(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { closeDrawer(); closeSettings(); }
+    });
+  }
+
+  return {
+    init, addUrl, addUrlFrom, openDrawer, closeDrawer,
+    clearAlerts, removeSite, forceCheck,
+    openSettings, closeSettings, saveSettings,
+    toggleEmailFields, onEmailInput, toggleAdvSmtp, testEmail,
+    alertAction, takeScreenshot, copyHash
+  };
+})();
+
+App.init();
+</script>
+</body>
+</html>

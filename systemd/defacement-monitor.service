@@ -1,0 +1,24 @@
+[Unit]
+Description=Website Defacement Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# --- EDIT THESE ---
+User=YOUR_USERNAME
+WorkingDirectory=/path/to/defacement-monitor
+ExecStart=/path/to/defacement-monitor/venv/bin/python defacement_monitor.py monitor --interval 300
+# ------------------
+
+Restart=on-failure
+RestartSec=30
+
+# Logging — view with: journalctl -u defacement-monitor -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=defacement-monitor
+
+[Install]
+WantedBy=multi-user.target
